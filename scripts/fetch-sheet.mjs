@@ -192,41 +192,34 @@ function extensionFromResponse(contentType, url) {
   return pathMatch?.[1]?.toLowerCase() || 'jpg'
 }
 
-async function resolveImageUrl(url) {
-  let resolved = resolveAssetUrl(url)
+function isDirectImageUrl(url) {
+  const resolved = resolveAssetUrl(url)
 
-  if (/i\.imgur\.com/i.test(resolved)) {
-    return resolved.split('?')[0]
-  }
+  if (/imgur\.com\/a\//i.test(resolved)) return false
+  if (/^https?:\/\/imgur\.com\/[^/?#]+\/?(?:\?.*)?$/i.test(resolved)) return false
+  if (/i\.imgur\.com/i.test(resolved)) return true
+  if (/drive\.google\.com\/uc/i.test(resolved)) return true
 
-  const albumMatch = resolved.match(/imgur\.com\/a\/([a-zA-Z0-9]+)/i)
-  if (albumMatch) {
-    const response = await fetch(resolved, {
-      headers: { 'User-Agent': FETCH_HEADERS['User-Agent'] },
-    })
-    if (response.ok) {
-      const html = await response.text()
-      const ogMatch =
-        html.match(/property="og:image"\s+content="([^"]+)"/i) ||
-        html.match(/content="(https:\/\/i\.imgur\.com\/[^"?]+)/i)
-      if (ogMatch) {
-        return ogMatch[1].split('?')[0]
-      }
-    }
-    console.warn(`Could not resolve Imgur album: ${url}`)
-    return resolved
-  }
+  return /\.(jpe?g|png|gif|webp|svg)(\?.*)?$/i.test(resolved)
+}
 
-  const singleMatch = resolved.match(/imgur\.com\/([a-zA-Z0-9]+)\/?(?:\?.*)?$/i)
-  if (singleMatch && !resolved.includes('/a/')) {
-    return `https://i.imgur.com/${singleMatch[1]}.jpg`
+function resolveImageUrl(url) {
+  const resolved = resolveAssetUrl(url)
+
+  if (!isDirectImageUrl(url)) {
+    console.warn(
+      `Skipping non-direct image URL (use i.imgur.com or a direct .jpg/.png link): ${url}`,
+    )
+    return null
   }
 
   return resolved.split('?')[0]
 }
 
 async function downloadImage(url) {
-  const resolvedUrl = await resolveImageUrl(url)
+  const resolvedUrl = resolveImageUrl(url)
+  if (!resolvedUrl) return {}
+
   const response = await fetch(resolvedUrl, { headers: FETCH_HEADERS })
 
   if (!response.ok) {
