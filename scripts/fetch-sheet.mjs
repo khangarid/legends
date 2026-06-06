@@ -296,7 +296,7 @@ async function normalizeItems(records) {
       id: uniqueId,
       name,
       price,
-      category: getField(record, 'category', 'Category') || 'Uncategorized',
+      category: getField(record, 'category', 'Category') || 'Ангилагдаагүй',
       description: getField(record, 'description', 'Description'),
       images: localImages,
       hero,

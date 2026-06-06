@@ -22,9 +22,7 @@ export function formatPrice(price: string | null) {
   if (!price) return null
   const numeric = Number(price.replace(/[^\d.]/g, ''))
   if (Number.isNaN(numeric)) return price
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat('mn-MN', {
     maximumFractionDigits: 0,
-  }).format(numeric)
+  }).format(numeric) + ' ₮'
 }

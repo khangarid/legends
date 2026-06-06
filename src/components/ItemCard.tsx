@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { CatalogItem } from '../types/item'
 import { formatPrice } from '../lib/catalog'
+import { mn } from '../lib/mn'
 import './ItemCard.css'
 
 type ItemCardProps = {
@@ -23,7 +24,7 @@ export default function ItemCard({ item, featured = false }: ItemCardProps) {
     <Link to={`/item/${item.id}`} className={`item-card ${featured ? 'item-card--featured' : ''}`}>
       <div className="item-card-media">
         <ItemImage item={item} />
-        {item.auction ? <span className="item-card-badge">Up for Auction</span> : null}
+        {item.auction ? <span className="item-card-badge">{mn.item.upForAuction}</span> : null}
       </div>
       <div className="item-card-body">
         <p className="item-card-category">{item.category}</p>

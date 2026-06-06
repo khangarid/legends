@@ -1,18 +1,17 @@
 import { siteConfig } from '../lib/catalog'
+import { mn } from '../lib/mn'
 import CertificateBadges from '../components/CertificateBadges'
 import './AboutPage.css'
 
 export default function AboutPage() {
-  const title = siteConfig.about_title || 'About Legends Memorabilia'
-  const body =
-    siteConfig.about_body ||
-    'Legends Memorabilia specializes in authenticated sports and cultural artifacts. Our catalog brings together rare pieces sourced with provenance, condition reporting, and industry-standard authentication in mind.'
+  const title = siteConfig.about_title || mn.about.defaultTitle
+  const body = siteConfig.about_body || mn.about.defaultBody
 
   return (
     <div className="about-page">
       <section className="about-hero">
         <div className="container">
-          <p className="eyebrow">Our Story</p>
+          <p className="eyebrow">{mn.about.ourStory}</p>
           <h1>{title}</h1>
           <p>{siteConfig.about_intro || siteConfig.tagline}</p>
         </div>
@@ -27,7 +26,7 @@ export default function AboutPage() {
           </div>
 
           <aside className="about-contact">
-            <h2>Contact</h2>
+            <h2>{mn.about.contact}</h2>
             {siteConfig.address ? <p>{siteConfig.address}</p> : null}
             {siteConfig.phone ? (
               <p>

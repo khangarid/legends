@@ -1,10 +1,11 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { siteConfig } from '../lib/catalog'
+import { mn } from '../lib/mn'
 import Footer from './Footer'
 import './Layout.css'
 
 export default function Layout() {
-  const title = siteConfig.site_title || 'Legends Memorabilia'
+  const title = siteConfig.site_title || mn.site.defaultTitle
 
   return (
     <div className="layout">
@@ -19,9 +20,9 @@ export default function Layout() {
           </Link>
           <nav className="site-nav">
             <NavLink to="/" end>
-              Catalog
+              {mn.nav.catalog}
             </NavLink>
-            <NavLink to="/about">About</NavLink>
+            <NavLink to="/about">{mn.nav.about}</NavLink>
           </nav>
         </div>
       </header>

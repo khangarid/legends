@@ -5,6 +5,7 @@ import {
   getHeroItems,
   siteConfig,
 } from '../lib/catalog'
+import { ALL_CATEGORY, mn } from '../lib/mn'
 import HeroShowcase from '../components/HeroShowcase'
 import ItemCard from '../components/ItemCard'
 import './HomePage.css'
@@ -12,10 +13,10 @@ import './HomePage.css'
 export default function HomePage() {
   const categories = getCategories()
   const heroItems = getHeroItems()
-  const [activeCategory, setActiveCategory] = useState('All')
+  const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY)
 
   const filteredItems = useMemo(() => {
-    if (activeCategory === 'All') return catalogItems
+    if (activeCategory === ALL_CATEGORY) return catalogItems
     return catalogItems.filter((item) => item.category === activeCategory)
   }, [activeCategory])
 
@@ -24,25 +25,24 @@ export default function HomePage() {
       <section className="home-hero">
         <div className="container home-hero-inner">
           <div>
-            <p className="eyebrow">Authenticated Memorabilia</p>
-            <h1>{siteConfig.site_title || 'Legends Memorabilia'}</h1>
+            <p className="eyebrow">{mn.home.eyebrow}</p>
+            <h1>{siteConfig.site_title || mn.site.defaultTitle}</h1>
             <p className="home-hero-copy">
-              {siteConfig.tagline ||
-                'Browse curated sports and cultural artifacts, from featured auction pieces to catalog staples.'}
+              {siteConfig.tagline || mn.site.defaultTagline}
             </p>
           </div>
           <div className="home-hero-stats">
             <div>
               <strong>{catalogItems.length}</strong>
-              <span>Items</span>
+              <span>{mn.home.items}</span>
             </div>
             <div>
               <strong>{categories.length}</strong>
-              <span>Categories</span>
+              <span>{mn.home.categories}</span>
             </div>
             <div>
               <strong>{heroItems.length}</strong>
-              <span>Live Auctions</span>
+              <span>{mn.home.liveAuctions}</span>
             </div>
           </div>
         </div>
@@ -53,17 +53,17 @@ export default function HomePage() {
       <section className="catalog-section">
         <div className="container">
           <div className="section-heading">
-            <p className="eyebrow">Full Catalog</p>
-            <h2>Explore the collection</h2>
+            <p className="eyebrow">{mn.home.fullCatalog}</p>
+            <h2>{mn.home.exploreCollection}</h2>
           </div>
 
           <div className="category-nav">
             <button
               type="button"
-              className={activeCategory === 'All' ? 'is-active' : undefined}
-              onClick={() => setActiveCategory('All')}
+              className={activeCategory === ALL_CATEGORY ? 'is-active' : undefined}
+              onClick={() => setActiveCategory(ALL_CATEGORY)}
             >
-              All
+              {mn.home.all}
             </button>
             {categories.map((category) => (
               <button
@@ -78,7 +78,7 @@ export default function HomePage() {
           </div>
 
           {filteredItems.length === 0 ? (
-            <p className="empty-state">No items in this category yet.</p>
+            <p className="empty-state">{mn.home.emptyCategory}</p>
           ) : (
             <div className="catalog-grid">
               {filteredItems.map((item) => (

@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import CertificateBadges from '../components/CertificateBadges'
 import ImageGallery from '../components/ImageGallery'
 import { formatPrice, getItemById } from '../lib/catalog'
+import { mn } from '../lib/mn'
 import './ItemDetailPage.css'
 
 export default function ItemDetailPage() {
@@ -11,9 +12,9 @@ export default function ItemDetailPage() {
   if (!item) {
     return (
       <div className="container detail-empty">
-        <h1>Item not found</h1>
-        <p>This catalog entry may have moved or is no longer available.</p>
-        <Link to="/">Back to catalog</Link>
+        <h1>{mn.item.notFound}</h1>
+        <p>{mn.item.notFoundDescription}</p>
+        <Link to="/">{mn.item.backToCatalog}</Link>
       </div>
     )
   }
@@ -23,7 +24,7 @@ export default function ItemDetailPage() {
   return (
     <div className="detail-page">
       <div className="container detail-breadcrumb">
-        <Link to="/">Catalog</Link>
+        <Link to="/">{mn.nav.catalog}</Link>
         <span>/</span>
         <span>{item.name}</span>
       </div>
@@ -36,14 +37,13 @@ export default function ItemDetailPage() {
           <h1>{item.name}</h1>
 
           {item.auction ? (
-            <p className="detail-auction">Currently up for auction</p>
+            <p className="detail-auction">{mn.item.upForAuctionDetail}</p>
           ) : price ? (
             <p className="detail-price">{price}</p>
           ) : null}
 
           <p className="detail-description">
-            {item.description ||
-              'An authenticated memorabilia piece from the Legends collection. Contact us for provenance details and condition notes.'}
+            {item.description || mn.item.defaultDescription}
           </p>
         </aside>
       </div>

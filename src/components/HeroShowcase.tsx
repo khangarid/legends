@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { CatalogItem } from '../types/item'
+import { mn } from '../lib/mn'
 import './HeroShowcase.css'
 
 type HeroShowcaseProps = {
@@ -13,8 +14,8 @@ export default function HeroShowcase({ items }: HeroShowcaseProps) {
     <section className="hero-showcase">
       <div className="container">
         <div className="section-heading">
-          <p className="eyebrow">Featured Auctions</p>
-          <h2>Hero pieces from the collection</h2>
+          <p className="eyebrow">{mn.hero.featuredAuctions}</p>
+          <h2>{mn.hero.heroPieces}</h2>
         </div>
         <div className="hero-grid">
           {items.map((item) => (
@@ -25,7 +26,7 @@ export default function HeroShowcase({ items }: HeroShowcaseProps) {
                 ) : (
                   <div className="hero-card-placeholder" />
                 )}
-                <span className="hero-card-badge">Up for Auction</span>
+                <span className="hero-card-badge">{mn.hero.upForAuction}</span>
               </div>
               <div className="hero-card-body">
                 <p>{item.category}</p>

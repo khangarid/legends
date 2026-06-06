@@ -1,4 +1,9 @@
 {
   "site_title": "Legends Memorabilia",
-  "logo": "/legends/static/logo.jpg"
+  "logo": "/legends/static/logo.jpg",
+  "tagline": "Curated authenticated memorabilia",
+  "address": "M Bank areana",
+  "phone": "99969696",
+  "email": "ulawch@ulmaa.com",
+  "hours": "Mon–Sat 10am–6pm"
 }

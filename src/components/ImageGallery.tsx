@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { mn } from '../lib/mn'
 import './ImageGallery.css'
 
 type ImageGalleryProps = {
@@ -11,7 +12,12 @@ export default function ImageGallery({ images, name }: ImageGalleryProps) {
   const activeImage = images[activeIndex]
 
   if (!activeImage) {
-    return <div className="gallery-placeholder" aria-label={`No images for ${name}`} />
+    return (
+      <div
+        className="gallery-placeholder"
+        aria-label={mn.item.noImages(name)}
+      />
+    )
   }
 
   return (
@@ -27,7 +33,7 @@ export default function ImageGallery({ images, name }: ImageGalleryProps) {
               type="button"
               className={index === activeIndex ? 'is-active' : undefined}
               onClick={() => setActiveIndex(index)}
-              aria-label={`View image ${index + 1} of ${images.length}`}
+              aria-label={mn.item.viewImage(index + 1, images.length)}
             >
               <img src={image} alt="" />
             </button>

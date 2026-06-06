@@ -2,8 +2,22 @@
   {
     "id": "dulmaagiin-ulawch",
     "name": "Dulmaagiin ulawch",
-    "price": "47230500",
+    "price": null,
     "category": "puuz2",
+    "description": "ulawch",
+    "images": [
+      "/legends/items/dulmaagiin-ulawch/0.bin",
+      "/legends/items/dulmaagiin-ulawch/1.bin",
+      "/legends/items/dulmaagiin-ulawch/2.bin"
+    ],
+    "hero": true,
+    "auction": true
+  },
+  {
+    "id": "item-2",
+    "name": "Леброний подволк",
+    "price": "5500",
+    "category": "Ангилагдаагүй",
     "description": "",
     "images": [],
     "hero": false,
