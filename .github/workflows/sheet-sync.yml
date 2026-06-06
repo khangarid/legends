@@ -1,0 +1,107 @@
+name: Sync sheet changes
+
+on:
+  schedule:
+    # GitHub's */5 cron is unreliable; run hourly and poll every 5 min inside the job.
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sheet-sync
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    outputs:
+      changed: ${{ steps.poll.outputs.changed }}
+    steps:
+      - name: Restore previous sheet hash
+        uses: actions/cache/restore@v4
+        with:
+          path: .sheet-hash
+          key: sheet-content-hash
+
+      - name: Poll sheet every 5 minutes
+        id: poll
+        env:
+          GOOGLE_SHEET_CSV_URL: ${{ secrets.GOOGLE_SHEET_CSV_URL }}
+        run: |
+          set -e
+          hash_file=".sheet-hash"
+          stored_hash=$(cat "$hash_file" 2>/dev/null || true)
+
+          for i in $(seq 1 12); do
+            echo "Check $i/12 at $(date -u)"
+            curl -fsSL "$GOOGLE_SHEET_CSV_URL" -o sheet.csv
+            current_hash=$(sha256sum sheet.csv | awk '{ print $1 }')
+
+            if [ "$current_hash" != "$stored_hash" ]; then
+              echo "$current_hash" > "$hash_file"
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              echo "Sheet changed."
+              exit 0
+            fi
+
+            echo "No change."
+            if [ "$i" -lt 12 ]; then
+              sleep 300
+            fi
+          done
+
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          echo "No sheet changes in the last hour."
+
+      - name: Save sheet hash
+        if: steps.poll.outputs.changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .sheet-hash
+          key: sheet-content-hash
+
+  deploy:
+    needs: poll
+    if: needs.poll.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          GOOGLE_SHEET_CSV_URL: ${{ secrets.GOOGLE_SHEET_CSV_URL }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_GID: ${{ secrets.GOOGLE_SHEET_GID }}
+          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
