@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUTPUT = join(__dirname, '../src/data/records.json')
 
-const sheetId = process.env.GOOGLE_SHEET_ID
-const gid = process.env.GOOGLE_SHEET_GID ?? '0'
-const range = process.env.GOOGLE_SHEET_RANGE ?? 'Sheet1'
-const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+const sheetId = process.env.GOOGLE_SHEET_ID?.trim()
+const gid = process.env.GOOGLE_SHEET_GID?.trim() || '0'
+const range = process.env.GOOGLE_SHEET_RANGE?.trim() || 'Sheet1'
+const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
 
 function rowsToRecords(rows) {
   if (!rows?.length) return []
