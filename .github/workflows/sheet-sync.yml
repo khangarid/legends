@@ -5,6 +5,11 @@ on:
     # GitHub's */5 cron is unreliable; run hourly and poll every 5 min inside the job.
     - cron: '5 * * * *'
   workflow_dispatch:
+    inputs:
+      watch_for_one_hour:
+        description: Poll every 5 minutes for up to 1 hour
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,13 +37,18 @@ jobs:
         id: poll
         env:
           GOOGLE_SHEET_CSV_URL: ${{ secrets.GOOGLE_SHEET_CSV_URL }}
+          WATCH_FOR_ONE_HOUR: ${{ github.event_name == 'schedule' && 'true' || inputs.watch_for_one_hour }}
         run: |
           set -e
           hash_file=".sheet-hash"
           stored_hash=$(cat "$hash_file" 2>/dev/null || true)
+          iterations=1
+          if [ "$WATCH_FOR_ONE_HOUR" = "true" ]; then
+            iterations=12
+          fi
 
-          for i in $(seq 1 12); do
-            echo "Check $i/12 at $(date -u)"
+          for i in $(seq 1 "$iterations"); do
+            echo "Check $i/$iterations at $(date -u)"
             curl -fsSL "$GOOGLE_SHEET_CSV_URL" -o sheet.csv
             current_hash=$(sha256sum sheet.csv | awk '{ print $1 }')
 
@@ -50,13 +60,13 @@ jobs:
             fi
 
             echo "No change."
-            if [ "$i" -lt 12 ]; then
+            if [ "$i" -lt "$iterations" ]; then
               sleep 300
             fi
           done
 
           echo "changed=false" >> "$GITHUB_OUTPUT"
-          echo "No sheet changes in the last hour."
+          echo "No sheet changes detected."
 
       - name: Save sheet hash
         if: steps.poll.outputs.changed == 'true'
