@@ -1,10 +1,30 @@
-import { writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUTPUT = join(__dirname, '../src/data/records.json')
 
+function loadEnvFile() {
+  const envPath = join(__dirname, '../.env')
+  if (!existsSync(envPath)) return
+
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+
+    const separator = trimmed.indexOf('=')
+    if (separator === -1) continue
+
+    const key = trimmed.slice(0, separator).trim()
+    const value = trimmed.slice(separator + 1).trim()
+    if (!process.env[key]) process.env[key] = value
+  }
+}
+
+loadEnvFile()
+
+const csvUrl = process.env.GOOGLE_SHEET_CSV_URL?.trim()
 const sheetId = process.env.GOOGLE_SHEET_ID?.trim()
 const gid = process.env.GOOGLE_SHEET_GID?.trim() || '0'
 const range = process.env.GOOGLE_SHEET_RANGE?.trim() || 'Sheet1'
@@ -67,6 +87,16 @@ function parseCsv(text) {
   return rowsToRecords(rows)
 }
 
+async function fetchPublishedCsv() {
+  const response = await fetch(csvUrl)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch published CSV (${response.status})`)
+  }
+
+  return parseCsv(await response.text())
+}
+
 async function fetchPublicCsv() {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
   const response = await fetch(url)
@@ -95,14 +125,22 @@ async function fetchWithServiceAccount() {
 }
 
 async function fetchRecords() {
-  if (!sheetId) {
-    console.log('GOOGLE_SHEET_ID not set — skipping sheet fetch.')
+  if (!csvUrl && !sheetId) {
+    console.log('GOOGLE_SHEET_CSV_URL or GOOGLE_SHEET_ID not set — skipping sheet fetch.')
     return null
   }
 
   if (serviceAccountJson) {
+    if (!sheetId) {
+      throw new Error('GOOGLE_SHEET_ID is required when using a service account.')
+    }
     console.log('Fetching sheet with service account...')
     return fetchWithServiceAccount()
+  }
+
+  if (csvUrl) {
+    console.log('Fetching published CSV URL...')
+    return fetchPublishedCsv()
   }
 
   console.log('Fetching public sheet as CSV...')

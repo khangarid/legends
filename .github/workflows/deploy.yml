@@ -36,6 +36,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          GOOGLE_SHEET_CSV_URL: ${{ secrets.GOOGLE_SHEET_CSV_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_GID: ${{ secrets.GOOGLE_SHEET_GID }}
           GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
