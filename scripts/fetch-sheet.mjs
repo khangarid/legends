@@ -145,6 +145,11 @@ function isUrl(value) {
   return /^https?:\/\//i.test(value)
 }
 
+const FETCH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; LegendsCatalog/1.0)',
+  Accept: 'image/*,*/*',
+}
+
 function resolveAssetUrl(value) {
   const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/]+)/)
   if (fileMatch) {
@@ -156,7 +161,24 @@ function resolveAssetUrl(value) {
     return `https://drive.google.com/uc?export=view&id=${openMatch[1]}`
   }
 
-  return value
+  return value.trim()
+}
+
+function isImageBuffer(buffer) {
+  if (buffer.length < 4) return false
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return true
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return true
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) return true
+  if (buffer.length >= 12 && buffer.toString('ascii', 8, 12) === 'WEBP') return true
+  return false
+}
+
+function extensionFromBuffer(buffer, contentType, url) {
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'jpg'
+  if (buffer[0] === 0x89 && buffer[1] === 0x50) return 'png'
+  if (buffer[0] === 0x47 && buffer[1] === 0x49) return 'gif'
+  if (buffer.length >= 12 && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp'
+  return extensionFromResponse(contentType, url)
 }
 
 function extensionFromResponse(contentType, url) {
@@ -167,17 +189,61 @@ function extensionFromResponse(contentType, url) {
   if (contentType?.includes('gif')) return 'gif'
 
   const pathMatch = new URL(url).pathname.match(/\.([a-zA-Z0-9]+)$/)
-  return pathMatch?.[1]?.toLowerCase() || 'bin'
+  return pathMatch?.[1]?.toLowerCase() || 'jpg'
 }
 
-async function downloadImage(resolvedUrl) {
-  const response = await fetch(resolvedUrl)
-  if (!response.ok) return null
+async function resolveImageUrl(url) {
+  let resolved = resolveAssetUrl(url)
 
-  const extension = extensionFromResponse(response.headers.get('content-type'), resolvedUrl)
+  if (/i\.imgur\.com/i.test(resolved)) {
+    return resolved.split('?')[0]
+  }
+
+  const albumMatch = resolved.match(/imgur\.com\/a\/([a-zA-Z0-9]+)/i)
+  if (albumMatch) {
+    const response = await fetch(resolved, {
+      headers: { 'User-Agent': FETCH_HEADERS['User-Agent'] },
+    })
+    if (response.ok) {
+      const html = await response.text()
+      const ogMatch =
+        html.match(/property="og:image"\s+content="([^"]+)"/i) ||
+        html.match(/content="(https:\/\/i\.imgur\.com\/[^"?]+)/i)
+      if (ogMatch) {
+        return ogMatch[1].split('?')[0]
+      }
+    }
+    console.warn(`Could not resolve Imgur album: ${url}`)
+    return resolved
+  }
+
+  const singleMatch = resolved.match(/imgur\.com\/([a-zA-Z0-9]+)\/?(?:\?.*)?$/i)
+  if (singleMatch && !resolved.includes('/a/')) {
+    return `https://i.imgur.com/${singleMatch[1]}.jpg`
+  }
+
+  return resolved.split('?')[0]
+}
+
+async function downloadImage(url) {
+  const resolvedUrl = await resolveImageUrl(url)
+  const response = await fetch(resolvedUrl, { headers: FETCH_HEADERS })
+
+  if (!response.ok) {
+    console.warn(`Failed to download image (${response.status}): ${url}`)
+    return { remoteUrl: resolvedUrl }
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer())
+  if (!isImageBuffer(buffer)) {
+    console.warn(`URL did not return image data: ${url} -> ${resolvedUrl}`)
+    return { remoteUrl: resolvedUrl }
+  }
+
   return {
-    extension,
-    buffer: Buffer.from(await response.arrayBuffer()),
+    extension: extensionFromBuffer(buffer, response.headers.get('content-type'), resolvedUrl),
+    buffer,
+    remoteUrl: resolvedUrl,
   }
 }
 
@@ -195,18 +261,25 @@ async function downloadStaticAssets(staticData) {
       continue
     }
 
-    const resolvedUrl = resolveAssetUrl(value)
-    const response = await fetch(resolvedUrl)
+    const resolvedUrl = await resolveImageUrl(value)
+    const response = await fetch(resolvedUrl, { headers: FETCH_HEADERS })
 
     if (!response.ok) {
       console.warn(`Failed to download "${key}" from ${value}`)
-      output[key] = value
+      output[key] = resolvedUrl
       continue
     }
 
-    const extension = extensionFromResponse(response.headers.get('content-type'), resolvedUrl)
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (!isImageBuffer(buffer)) {
+      console.warn(`Static asset "${key}" is not a valid image, using remote URL`)
+      output[key] = resolvedUrl
+      continue
+    }
+
+    const extension = extensionFromBuffer(buffer, response.headers.get('content-type'), resolvedUrl)
     const filename = `${key}.${extension}`
-    writeFileSync(join(STATIC_DIR, filename), Buffer.from(await response.arrayBuffer()))
+    writeFileSync(join(STATIC_DIR, filename), buffer)
     output[key] = `${SITE_BASE}static/${filename}`
     console.log(`Downloaded ${key} -> public/static/${filename}`)
   }
@@ -279,17 +352,19 @@ async function normalizeItems(records) {
       const url = imageUrls[index]
       if (!isUrl(url)) continue
 
-      const downloaded = await downloadImage(resolveAssetUrl(url))
-      if (!downloaded) {
-        localImages.push(url)
+      const downloaded = await downloadImage(url)
+      if (downloaded.buffer && downloaded.extension) {
+        const itemDir = join(ITEMS_DIR, uniqueId)
+        mkdirSync(itemDir, { recursive: true })
+        const filename = `${index}.${downloaded.extension}`
+        writeFileSync(join(itemDir, filename), downloaded.buffer)
+        localImages.push(`${SITE_BASE}items/${uniqueId}/${filename}`)
         continue
       }
 
-      const itemDir = join(ITEMS_DIR, uniqueId)
-      mkdirSync(itemDir, { recursive: true })
-      const filename = `${index}.${downloaded.extension}`
-      writeFileSync(join(itemDir, filename), downloaded.buffer)
-      localImages.push(`${SITE_BASE}items/${uniqueId}/${filename}`)
+      if (downloaded.remoteUrl) {
+        localImages.push(downloaded.remoteUrl)
+      }
     }
 
     normalized.push({

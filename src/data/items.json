@@ -6,9 +6,9 @@
     "category": "puuz2",
     "description": "ulawch",
     "images": [
-      "/legends/items/dulmaagiin-ulawch/0.bin",
-      "/legends/items/dulmaagiin-ulawch/1.bin",
-      "/legends/items/dulmaagiin-ulawch/2.bin"
+      "/legends/items/dulmaagiin-ulawch/0.jpg",
+      "/legends/items/dulmaagiin-ulawch/1.jpg",
+      "/legends/items/dulmaagiin-ulawch/2.jpg"
     ],
     "hero": true,
     "auction": true
@@ -17,9 +17,13 @@
     "id": "item-2",
     "name": "Леброний подволк",
     "price": "5500",
-    "category": "Ангилагдаагүй",
-    "description": "",
-    "images": [],
+    "category": "подволк",
+    "description": "жинкэн",
+    "images": [
+      "/legends/items/item-2/0.jpg",
+      "/legends/items/item-2/1.jpg",
+      "/legends/items/item-2/2.jpg"
+    ],
     "hero": false,
     "auction": false
   }
