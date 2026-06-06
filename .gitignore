@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+public/static/*
+!public/static/.gitkeep
 .env
 
 # Editor directories and files

@@ -1,26 +1,32 @@
 import records from './data/records.json'
+import staticAssets from './data/static.json'
 import type { SheetRecord } from './types/record'
+import type { StaticAssets } from './types/static'
 import './App.css'
 
-const data = records as SheetRecord[]
+const items = records as SheetRecord[]
+const staticData = staticAssets as StaticAssets
 
 function App() {
-  const columns =
-    data.length > 0 ? Object.keys(data[0]) : []
+  const columns = items.length > 0 ? Object.keys(items[0]) : []
+  const title = staticData.site_title || 'Products'
+  const tagline =
+    staticData.tagline ||
+    `${items.length} item${items.length === 1 ? '' : 's'} loaded at build time.`
 
   return (
     <main className="landing">
       <header className="header">
-        <h1>Products</h1>
-        <p className="subtitle">
-          {data.length} record{data.length === 1 ? '' : 's'} from your Google
-          Sheet, loaded at build time.
-        </p>
+        {staticData.logo ? (
+          <img src={staticData.logo} alt="" className="logo" />
+        ) : null}
+        <h1>{title}</h1>
+        <p className="subtitle">{tagline}</p>
       </header>
 
-      {data.length === 0 ? (
+      {items.length === 0 ? (
         <p className="empty">
-          No records yet. Add a header row and data to your sheet, then rebuild.
+          No items yet. Add rows to the items sheet, then rebuild.
         </p>
       ) : (
         <div className="table-wrap">
@@ -33,7 +39,7 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {data.map((record, index) => (
+              {items.map((record, index) => (
                 <tr key={index}>
                   {columns.map((column) => (
                     <td key={column}>{record[column]}</td>

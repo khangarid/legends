@@ -1,9 +1,12 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const OUTPUT = join(__dirname, '../src/data/records.json')
+const RECORDS_OUTPUT = join(__dirname, '../src/data/records.json')
+const STATIC_OUTPUT = join(__dirname, '../src/data/static.json')
+const STATIC_DIR = join(__dirname, '../public/static')
+const SITE_BASE = process.env.SITE_BASE?.trim() || '/legends/'
 
 function loadEnvFile() {
   const envPath = join(__dirname, '../.env')
@@ -24,24 +27,18 @@ function loadEnvFile() {
 
 loadEnvFile()
 
-const csvUrl = process.env.GOOGLE_SHEET_CSV_URL?.trim()
+const itemsCsvUrl =
+  process.env.GOOGLE_SHEET_ITEMS_CSV_URL?.trim() ||
+  process.env.GOOGLE_SHEET_CSV_URL?.trim()
+const staticCsvUrl = process.env.GOOGLE_SHEET_STATIC_CSV_URL?.trim()
 const sheetId = process.env.GOOGLE_SHEET_ID?.trim()
-const gid = process.env.GOOGLE_SHEET_GID?.trim() || '0'
-const range = process.env.GOOGLE_SHEET_RANGE?.trim() || 'Sheet1'
+const itemsGid = process.env.GOOGLE_SHEET_ITEMS_GID?.trim() || process.env.GOOGLE_SHEET_GID?.trim() || '0'
+const staticGid = process.env.GOOGLE_SHEET_STATIC_GID?.trim()
+const itemsRange = process.env.GOOGLE_SHEET_ITEMS_RANGE?.trim() || 'items'
+const staticRange = process.env.GOOGLE_SHEET_STATIC_RANGE?.trim() || 'static'
 const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
 
-function rowsToRecords(rows) {
-  if (!rows?.length) return []
-
-  const [headers, ...dataRows] = rows
-  return dataRows
-    .filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''))
-    .map((row) =>
-      Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ''])),
-    )
-}
-
-function parseCsv(text) {
+function parseCsvRows(text) {
   const rows = []
   let row = []
   let field = ''
@@ -84,31 +81,51 @@ function parseCsv(text) {
     rows.push(row)
   }
 
-  return rowsToRecords(rows)
+  return rows
 }
 
-async function fetchPublishedCsv() {
-  const response = await fetch(csvUrl)
+function rowsToRecords(rows) {
+  if (!rows?.length) return []
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch published CSV (${response.status})`)
+  const [headers, ...dataRows] = rows
+  return dataRows
+    .filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''))
+    .map((row) =>
+      Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ''])),
+    )
+}
+
+function rowsToKeyValue(rows) {
+  if (!rows?.length) return {}
+
+  let start = 0
+  const first = rows[0].map((cell) => String(cell ?? '').trim().toLowerCase())
+  if (first[0] === 'key') start = 1
+
+  const entries = {}
+  for (const row of rows.slice(start)) {
+    const key = String(row[0] ?? '').trim()
+    const value = String(row[1] ?? '').trim()
+    if (key) entries[key] = value
   }
 
-  return parseCsv(await response.text())
+  return entries
 }
 
-async function fetchPublicCsv() {
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+async function fetchCsvText(url) {
   const response = await fetch(url)
-
   if (!response.ok) {
-    throw new Error(`Failed to fetch public sheet (${response.status})`)
+    throw new Error(`Failed to fetch CSV (${response.status}): ${url}`)
   }
-
-  return parseCsv(await response.text())
+  return response.text()
 }
 
-async function fetchWithServiceAccount() {
+async function fetchPublicCsv(gid) {
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+  return fetchCsvText(url)
+}
+
+async function fetchSheetValues(range) {
   const { google } = await import('googleapis')
   const credentials = JSON.parse(serviceAccountJson)
   const auth = new google.auth.GoogleAuth({
@@ -120,36 +137,125 @@ async function fetchWithServiceAccount() {
     spreadsheetId: sheetId,
     range,
   })
-
-  return rowsToRecords(response.data.values ?? [])
+  return response.data.values ?? []
 }
 
-async function fetchRecords() {
-  if (!csvUrl && !sheetId) {
-    console.log('GOOGLE_SHEET_CSV_URL or GOOGLE_SHEET_ID not set — skipping sheet fetch.')
-    return null
+function isUrl(value) {
+  return /^https?:\/\//i.test(value)
+}
+
+function resolveAssetUrl(value) {
+  const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/]+)/)
+  if (fileMatch) {
+    return `https://drive.google.com/uc?export=view&id=${fileMatch[1]}`
   }
 
-  if (serviceAccountJson) {
-    if (!sheetId) {
-      throw new Error('GOOGLE_SHEET_ID is required when using a service account.')
+  const openMatch = value.match(/drive\.google\.com\/open\?id=([^&]+)/)
+  if (openMatch) {
+    return `https://drive.google.com/uc?export=view&id=${openMatch[1]}`
+  }
+
+  return value
+}
+
+function extensionFromResponse(contentType, url) {
+  if (contentType?.includes('png')) return 'png'
+  if (contentType?.includes('jpeg') || contentType?.includes('jpg')) return 'jpg'
+  if (contentType?.includes('webp')) return 'webp'
+  if (contentType?.includes('svg')) return 'svg'
+  if (contentType?.includes('gif')) return 'gif'
+
+  const pathMatch = new URL(url).pathname.match(/\.([a-zA-Z0-9]+)$/)
+  return pathMatch?.[1]?.toLowerCase() || 'bin'
+}
+
+async function downloadStaticAssets(staticData) {
+  if (existsSync(STATIC_DIR)) {
+    rmSync(STATIC_DIR, { recursive: true, force: true })
+  }
+  mkdirSync(STATIC_DIR, { recursive: true })
+
+  const output = {}
+
+  for (const [key, value] of Object.entries(staticData)) {
+    if (!isUrl(value)) {
+      output[key] = value
+      continue
     }
-    console.log('Fetching sheet with service account...')
-    return fetchWithServiceAccount()
+
+    const resolvedUrl = resolveAssetUrl(value)
+    const response = await fetch(resolvedUrl)
+
+    if (!response.ok) {
+      console.warn(`Failed to download "${key}" from ${value}`)
+      output[key] = value
+      continue
+    }
+
+    const extension = extensionFromResponse(response.headers.get('content-type'), resolvedUrl)
+    const filename = `${key}.${extension}`
+    writeFileSync(join(STATIC_DIR, filename), Buffer.from(await response.arrayBuffer()))
+    output[key] = `${SITE_BASE}static/${filename}`
+    console.log(`Downloaded ${key} -> public/static/${filename}`)
   }
 
-  if (csvUrl) {
-    console.log('Fetching published CSV URL...')
-    return fetchPublishedCsv()
-  }
-
-  console.log('Fetching public sheet as CSV...')
-  return fetchPublicCsv()
+  return output
 }
 
-const records = await fetchRecords()
+async function fetchItems() {
+  if (serviceAccountJson) {
+    if (!sheetId) throw new Error('GOOGLE_SHEET_ID is required when using a service account.')
+    console.log(`Fetching items from "${itemsRange}"...`)
+    return rowsToRecords(await fetchSheetValues(itemsRange))
+  }
 
-if (records) {
-  writeFileSync(OUTPUT, `${JSON.stringify(records, null, 2)}\n`)
-  console.log(`Wrote ${records.length} records to src/data/records.json`)
+  if (itemsCsvUrl) {
+    console.log('Fetching items CSV...')
+    return rowsToRecords(parseCsvRows(await fetchCsvText(itemsCsvUrl)))
+  }
+
+  if (sheetId) {
+    console.log('Fetching items via export API...')
+    return rowsToRecords(parseCsvRows(await fetchPublicCsv(itemsGid)))
+  }
+
+  return null
+}
+
+async function fetchStatic() {
+  if (serviceAccountJson) {
+    if (!sheetId) throw new Error('GOOGLE_SHEET_ID is required when using a service account.')
+    console.log(`Fetching static assets from "${staticRange}"...`)
+    return rowsToKeyValue(await fetchSheetValues(staticRange))
+  }
+
+  if (staticCsvUrl) {
+    console.log('Fetching static CSV...')
+    return rowsToKeyValue(parseCsvRows(await fetchCsvText(staticCsvUrl)))
+  }
+
+  if (sheetId && staticGid) {
+    console.log('Fetching static via export API...')
+    return rowsToKeyValue(parseCsvRows(await fetchPublicCsv(staticGid)))
+  }
+
+  return null
+}
+
+if (!itemsCsvUrl && !staticCsvUrl && !sheetId) {
+  console.log('No Google Sheet env vars set — skipping sheet fetch.')
+  process.exit(0)
+}
+
+const [items, staticData] = await Promise.all([fetchItems(), fetchStatic()])
+
+if (items) {
+  writeFileSync(RECORDS_OUTPUT, `${JSON.stringify(items, null, 2)}\n`)
+  console.log(`Wrote ${items.length} items to src/data/records.json`)
+}
+
+if (staticData) {
+  const assets = await downloadStaticAssets(staticData)
+  writeFileSync(STATIC_OUTPUT, `${JSON.stringify(assets, null, 2)}\n`)
+  console.log(`Wrote ${Object.keys(assets).length} static values to src/data/static.json`)
 }

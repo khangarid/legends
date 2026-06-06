@@ -36,21 +36,37 @@ jobs:
       - name: Poll sheet every 5 minutes
         id: poll
         env:
+          GOOGLE_SHEET_ITEMS_CSV_URL: ${{ secrets.GOOGLE_SHEET_ITEMS_CSV_URL }}
+          GOOGLE_SHEET_STATIC_CSV_URL: ${{ secrets.GOOGLE_SHEET_STATIC_CSV_URL }}
           GOOGLE_SHEET_CSV_URL: ${{ secrets.GOOGLE_SHEET_CSV_URL }}
           WATCH_FOR_ONE_HOUR: ${{ github.event_name == 'schedule' && 'true' || inputs.watch_for_one_hour }}
         run: |
           set -e
           hash_file=".sheet-hash"
           stored_hash=$(cat "$hash_file" 2>/dev/null || true)
+          items_url="${GOOGLE_SHEET_ITEMS_CSV_URL:-$GOOGLE_SHEET_CSV_URL}"
           iterations=1
           if [ "$WATCH_FOR_ONE_HOUR" = "true" ]; then
             iterations=12
           fi
 
+          fetch_all() {
+            if [ -n "$items_url" ]; then
+              curl -fsSL "$items_url" -o items.csv
+            else
+              : > items.csv
+            fi
+            if [ -n "$GOOGLE_SHEET_STATIC_CSV_URL" ]; then
+              curl -fsSL "$GOOGLE_SHEET_STATIC_CSV_URL" -o static.csv
+            else
+              : > static.csv
+            fi
+            cat items.csv static.csv
+          }
+
           for i in $(seq 1 "$iterations"); do
             echo "Check $i/$iterations at $(date -u)"
-            curl -fsSL "$GOOGLE_SHEET_CSV_URL" -o sheet.csv
-            current_hash=$(sha256sum sheet.csv | awk '{ print $1 }')
+            current_hash=$(fetch_all | sha256sum | awk '{ print $1 }')
 
             if [ "$current_hash" != "$stored_hash" ]; then
               echo "$current_hash" > "$hash_file"
@@ -98,10 +114,15 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          GOOGLE_SHEET_ITEMS_CSV_URL: ${{ secrets.GOOGLE_SHEET_ITEMS_CSV_URL }}
+          GOOGLE_SHEET_STATIC_CSV_URL: ${{ secrets.GOOGLE_SHEET_STATIC_CSV_URL }}
           GOOGLE_SHEET_CSV_URL: ${{ secrets.GOOGLE_SHEET_CSV_URL }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_ITEMS_GID: ${{ secrets.GOOGLE_SHEET_ITEMS_GID }}
+          GOOGLE_SHEET_STATIC_GID: ${{ secrets.GOOGLE_SHEET_STATIC_GID }}
           GOOGLE_SHEET_GID: ${{ secrets.GOOGLE_SHEET_GID }}
-          GOOGLE_SHEET_RANGE: ${{ secrets.GOOGLE_SHEET_RANGE }}
+          GOOGLE_SHEET_ITEMS_RANGE: ${{ secrets.GOOGLE_SHEET_ITEMS_RANGE }}
+          GOOGLE_SHEET_STATIC_RANGE: ${{ secrets.GOOGLE_SHEET_STATIC_RANGE }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
 
       - name: Setup Pages
