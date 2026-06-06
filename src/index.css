@@ -2,6 +2,9 @@
   --text: #1a1a2e;
   --text-muted: #5c5c7a;
   --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-muted: #f4f4f8;
+  --border: #e2e2ea;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
 
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -20,6 +23,9 @@
     --text: #f0f0f5;
     --text-muted: #a0a0b8;
     --bg: #0f0f1a;
+    --surface: #171722;
+    --surface-muted: #1f1f2c;
+    --border: #2e2e3d;
   }
 }
 
