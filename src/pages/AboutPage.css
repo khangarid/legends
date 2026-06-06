@@ -1,0 +1,68 @@
+.about-hero {
+  padding: 4rem 0 2rem;
+}
+
+.about-hero h1 {
+  margin: 0;
+  max-width: 12ch;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 6vw, 4.8rem);
+  line-height: 0.98;
+}
+
+.about-hero p {
+  max-width: 42rem;
+  margin: 1rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.about-content {
+  padding: 1rem 0 2rem;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 2rem;
+}
+
+.about-copy p {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  line-height: 1.85;
+  font-size: 1.02rem;
+}
+
+.about-contact {
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.about-contact h2 {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: 2rem;
+}
+
+.about-contact p {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.about-contact a:hover {
+  color: var(--gold);
+}
+
+.about-certificates {
+  padding: 1rem 0 4rem;
+}
+
+@media (max-width: 900px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -13,6 +13,8 @@ dist-ssr
 *.local
 public/static/*
 !public/static/.gitkeep
+public/items/*
+!public/items/.gitkeep
 .env
 
 # Editor directories and files

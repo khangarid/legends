@@ -3,9 +3,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const RECORDS_OUTPUT = join(__dirname, '../src/data/records.json')
+const RECORDS_OUTPUT = join(__dirname, '../src/data/items.json')
 const STATIC_OUTPUT = join(__dirname, '../src/data/static.json')
 const STATIC_DIR = join(__dirname, '../public/static')
+const ITEMS_DIR = join(__dirname, '../public/items')
 const SITE_BASE = process.env.SITE_BASE?.trim() || '/legends/'
 
 function loadEnvFile() {
@@ -169,6 +170,17 @@ function extensionFromResponse(contentType, url) {
   return pathMatch?.[1]?.toLowerCase() || 'bin'
 }
 
+async function downloadImage(resolvedUrl) {
+  const response = await fetch(resolvedUrl)
+  if (!response.ok) return null
+
+  const extension = extensionFromResponse(response.headers.get('content-type'), resolvedUrl)
+  return {
+    extension,
+    buffer: Buffer.from(await response.arrayBuffer()),
+  }
+}
+
 async function downloadStaticAssets(staticData) {
   if (existsSync(STATIC_DIR)) {
     rmSync(STATIC_DIR, { recursive: true, force: true })
@@ -200,6 +212,99 @@ async function downloadStaticAssets(staticData) {
   }
 
   return output
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function getField(record, ...names) {
+  const entries = Object.entries(record)
+  for (const name of names) {
+    const match = entries.find(([key]) => key.toLowerCase() === name.toLowerCase())
+    if (match) return String(match[1] ?? '').trim()
+  }
+  return ''
+}
+
+function parseBoolean(value) {
+  const normalized = value.trim().toLowerCase()
+  return ['1', 'true', 'yes', 'y'].includes(normalized)
+}
+
+function parseImageList(value) {
+  if (!value) return []
+  return value
+    .split(/[,|]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+async function normalizeItems(records) {
+  if (existsSync(ITEMS_DIR)) {
+    rmSync(ITEMS_DIR, { recursive: true, force: true })
+  }
+  mkdirSync(ITEMS_DIR, { recursive: true })
+
+  const usedIds = new Set()
+  const normalized = []
+
+  for (const record of records) {
+    const name = getField(record, 'name', 'Name')
+    if (!name) continue
+
+    let id = getField(record, 'id', 'Id', 'slug', 'Slug') || slugify(name)
+    if (!id) id = `item-${normalized.length + 1}`
+
+    let uniqueId = id
+    let suffix = 2
+    while (usedIds.has(uniqueId)) {
+      uniqueId = `${id}-${suffix}`
+      suffix += 1
+    }
+    usedIds.add(uniqueId)
+
+    const hero = parseBoolean(getField(record, 'hero', 'Hero', 'featured', 'Featured'))
+    const auction = hero || parseBoolean(getField(record, 'auction', 'Auction'))
+    const rawPrice = getField(record, 'price', 'Price')
+    const price = hero || auction || !rawPrice ? null : rawPrice
+    const imageUrls = parseImageList(getField(record, 'images', 'Images', 'image', 'Image'))
+    const localImages = []
+
+    for (let index = 0; index < imageUrls.length; index += 1) {
+      const url = imageUrls[index]
+      if (!isUrl(url)) continue
+
+      const downloaded = await downloadImage(resolveAssetUrl(url))
+      if (!downloaded) {
+        localImages.push(url)
+        continue
+      }
+
+      const itemDir = join(ITEMS_DIR, uniqueId)
+      mkdirSync(itemDir, { recursive: true })
+      const filename = `${index}.${downloaded.extension}`
+      writeFileSync(join(itemDir, filename), downloaded.buffer)
+      localImages.push(`${SITE_BASE}items/${uniqueId}/${filename}`)
+    }
+
+    normalized.push({
+      id: uniqueId,
+      name,
+      price,
+      category: getField(record, 'category', 'Category') || 'Uncategorized',
+      description: getField(record, 'description', 'Description'),
+      images: localImages,
+      hero,
+      auction,
+    })
+  }
+
+  return normalized
 }
 
 async function fetchItems() {
@@ -250,8 +355,9 @@ if (!itemsCsvUrl && !staticCsvUrl && !sheetId) {
 const [items, staticData] = await Promise.all([fetchItems(), fetchStatic()])
 
 if (items) {
-  writeFileSync(RECORDS_OUTPUT, `${JSON.stringify(items, null, 2)}\n`)
-  console.log(`Wrote ${items.length} items to src/data/records.json`)
+  const normalizedItems = await normalizeItems(items)
+  writeFileSync(RECORDS_OUTPUT, `${JSON.stringify(normalizedItems, null, 2)}\n`)
+  console.log(`Wrote ${normalizedItems.length} items to src/data/items.json`)
 }
 
 if (staticData) {
